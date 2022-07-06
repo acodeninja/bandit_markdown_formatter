@@ -34,4 +34,6 @@ jobs:
         continue-on-error: true
 
       - name: check against known report
-        run: cmp -s bandit-report.md .github/resources/bandit-report.md
+        run: |
+          cmp -s bandit-report.md .github/resources/bandit-report.md || \
+            (diff bandit-report.md .github/resources/bandit-report.md && exit 1)
