@@ -9,3 +9,8 @@ A report formatter for producing markdown from a bandit run.
 ## Usage
 
 `bandit -r -f markdown -o bandit-report.md .`
+
+## TODO
+
+- [ ] Show errors
+- [ ] Better title display (some are too long)
