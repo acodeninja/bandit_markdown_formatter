@@ -1,0 +1,5 @@
+*.egg-info/
+bandit-main/
+.venv/
+*__pycache__*
+bandit-report.*
