@@ -1,0 +1,36 @@
+name: test
+
+on: [push]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version:
+          - '3.8'
+          - '3.9'
+          - '3.10'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: get bandit sources
+        run: |
+          wget https://github.com/PyCQA/bandit/archive/refs/heads/main.zip
+          unzip main.zip
+          rm main.zip
+
+      - name: setup module
+        run: pip install .
+
+      - name: run bandit
+        run: bandit -r -f markdown -o bandit-report.md bandit-main/examples
+
+      - name: check against known report
+        run: cmp -s bandit-report.md .github/resources/bandit-report.md
