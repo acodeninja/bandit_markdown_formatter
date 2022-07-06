@@ -31,6 +31,7 @@ jobs:
 
       - name: run bandit
         run: bandit -r -f markdown -o bandit-report.md bandit-main/examples
+        continue-on-error: true
 
       - name: check against known report
         run: cmp -s bandit-report.md .github/resources/bandit-report.md
