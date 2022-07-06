@@ -1,4 +1,11 @@
 # Bandit Markdown Formatter
 
-Outputs a bandit report as markdown.
+A report formatter for producing markdown from a bandit run.
 
+## Installation
+
+`pip install git+https://github.com/acodeninja/bandit_markdown_formatter@main`
+
+## Usage
+
+`bandit -r -f markdown -o bandit-report.md .`
