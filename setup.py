@@ -12,7 +12,10 @@ setup(
     url="https://github.com/acodeninja/bandit_markdown_formatter",
     entry_points={'bandit.formatters': ['markdown = bandit_markdown_formatter:markdown']},
     packages=['bandit_markdown_formatter'],
-    install_requires=['bandit>=1.7.4'],
+    install_requires=[
+        'bandit>=1.7.4',
+        'jinja2>=3.1.2',
+    ],
     long_description=open(os.path.join(os.path.dirname(__file__), 'README.md')).read(),
     classifiers=[
         "Development Status :: 3 - Alpha",

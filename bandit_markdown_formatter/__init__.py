@@ -1,71 +1,97 @@
-import logging
-
-LOG = logging.getLogger(__name__)
+import bandit
+from typing import List
+from jinja2 import Environment, BaseLoader
+from functools import reduce
 
 
 def markdown(manager, fileobj, sev_level, conf_level, lines=-1):
-    header_block = """# Bandit Report
+    env = Environment(loader=BaseLoader())
+    template = env.from_string(__TEMPLATE__)
 
-{metrics}
+    class IssueAlert:
+        def __init__(
+                self,
+                title: str,
+                test: str,
+                test_id: str,
+                severity: str,
+                cwe: bandit.Cwe,
+                instances: List[bandit.Issue]
+        ):
+            self.title: str = title
+            self.test: str = test
+            self.test_id: str = test_id
+            self.severity: str = severity
+            self.cwe: bandit.Cwe = cwe
+            self.instances: List[bandit.Issue] = instances
 
-## Issues
+    def combine_tests(accumulator, new_test):
+        if new_test.test in accumulator:
+            accumulator[new_test.test].instances.append(new_test)
+        else:
+            accumulator[new_test.test] = IssueAlert(
+                title=new_test.text,
+                test=new_test.test,
+                test_id=new_test.test_id,
+                severity=new_test.severity,
+                cwe=new_test.cwe,
+                instances=[new_test]
+            )
 
-"""
-    metrics_block = """
-**High Severity**: {severity_high}
-
-**Medium Severity**: {severity_medium}
-
-**Low Severity**: {severity_low}
-
-**Undefined Severity**: {severity_undefined}
-
-**Lines of Code**: {loc}
-
-**Lines Purposefully Skipped**: {nosec}
-"""
-    issue_block = """
-### {issue_text}
-
-**Test**: {test_name} ({test_id})
-
-**Severity**: {issue_severity}
-
-**Confidence**: {issue_confidence}
-
-[CWE Details]({issue_cwe_link})
-
-`{filename}`
-
-```
-{code}
-```
-
-"""
-
-    result = header_block.format(
-        metrics=metrics_block.format(
-            severity_high=manager.metrics.data["_totals"]["SEVERITY.HIGH"],
-            severity_medium=manager.metrics.data["_totals"]["SEVERITY.MEDIUM"],
-            severity_low=manager.metrics.data["_totals"]["SEVERITY.LOW"],
-            severity_undefined=manager.metrics.data["_totals"]["SEVERITY.UNDEFINED"],
-            loc=manager.metrics.data["_totals"]["loc"],
-            nosec=manager.metrics.data["_totals"]["nosec"],
-        )
-    )
+        return accumulator
 
     issues = manager.get_issue_list(sev_level=sev_level, conf_level=conf_level)
-    for index, issue in enumerate(issues):
-        result += issue_block.format(
-            issue_text=issue.text,
-            test_name=issue.test,
-            test_id=issue.test_id,
-            issue_severity=issue.severity,
-            issue_confidence=issue.confidence,
-            issue_cwe_link=issue.cwe.link(),
-            filename=issue.fname,
-            code=issue.get_code().strip("\n").lstrip(" "),
-        )
+    severity_sort_order = {'HIGH': 0, 'MEDIUM': 1000, 'LOW': 2000, 'UNDEFINED': 3000}
+    alerts = reduce(combine_tests, issues, {}).values()
+    sorted_alerts = sorted(alerts, key=lambda x: severity_sort_order[x.severity] - len(x.instances))
 
     with fileobj:
-        fileobj.write(result)
+        fileobj.write(template.render(
+            title='Bandit Report',
+            alerts=sorted_alerts,
+            metrics={
+                'high': manager.metrics.data["_totals"]["SEVERITY.HIGH"],
+                'medium': manager.metrics.data["_totals"]["SEVERITY.MEDIUM"],
+                'low': manager.metrics.data["_totals"]["SEVERITY.LOW"],
+                'undefined': manager.metrics.data["_totals"]["SEVERITY.UNDEFINED"],
+                'loc': manager.metrics.data["_totals"]["loc"],
+                'nosec': manager.metrics.data["_totals"]["nosec"],
+            },
+        ))
+
+
+__TEMPLATE__ = """# {{ title }}
+
+## Summary of Alerts
+
+| Risk Level |        Number of Alerts |
+|:-----------|------------------------:|
+| High       | {{ (metrics.high | string).rjust(23) }} |
+| Medium     | {{ (metrics.medium | string).rjust(23) }} |
+| Low        | {{ (metrics.low | string).rjust(23) }} |
+| Undefined  | {{ (metrics.undefined | string).rjust(23) }} |
+
+| Test | Number of Alerts | Severity |
+|:---|---|---:|
+{% for alert in alerts -%}
+| {{ alert.test | replace('_', ' ') | title }} | {{ alert.instances | length | string }} | {{ alert.severity }} |
+{% endfor %}
+
+## Alert Details
+
+{% for alert in alerts -%}
+### {{ alert.test | replace('_', ' ') | title }} ({{ alert.test_id }}) ({{ alert.severity }})
+
+{{ alert.title }}
+
+[CWE-{{ alert.cwe.id }}]({{ alert.cwe.link() }})
+
+#### Instances
+{% for instance in alert.instances %}
+`{{ instance.fname }}` (With a {{ instance.confidence | title }} confidence)
+```python
+{{ instance.get_code().strip("\n").lstrip(" ") }}
+```
+{% endfor %}
+{% endfor %}
+"""
